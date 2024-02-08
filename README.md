@@ -2,9 +2,21 @@
 
 ChatGemini 是一个基于 Google Gemini 的网页客户端，对标 ChatGPT 3.5，使用逻辑同 ChatGPT 3.5 一致，同时支持在聊天中上传图片，自动调用 Gemini-Pro-Vision 模型进行识图。
 
-本项目还可自定义 Gemini API 服务器地址，用户可将本项目部署至支持 PHP 的服务器或虚拟主机上，或是自行配置 Nginx 反向代理，透过修改 Gemini API 路径，从而在中国大陆无障碍使用。
+本项目还可自定义 Gemini API 服务器地址，用户可将本项目部署至支持 PHP 的服务器或虚拟主机上，或是自行配置 Nginx 反向代理，通过修改 Gemini API 路径，从而在中国大陆无障碍使用。
 
 如果您对本项目感兴趣，欢迎 Star 和 Fork。
+
+## 演示站点（需翻墙）
+
+[ChatGemini](https://ibcl.us/ChatGemini)
+
+## 讨论群组
+
+欢迎加入 Telegram 群组，同其他用户交流，反馈问题或建议，也可以在群组中了解最新动态。
+
+加入群组，请友善交流。
+
+ - [ChatGemini@Telegram](https://t.me/+iHpQPT3hTDtlNDM1)
 
 ## 功能特性
 
@@ -22,10 +34,6 @@ ChatGemini 是一个基于 Google Gemini 的网页客户端，对标 ChatGPT 3.5
  - 对话内容保存在 IndexedDB 中
  - 在 AI 回应中运行 Python 代码
 
-## 演示站点（需翻墙）
-
-[ChatGemini](https://ibcl.us/ChatGemini)
-
 ## 界面预览
 
 <details><summary>点击展开网页效果</summary>
@@ -35,6 +43,7 @@ ChatGemini 是一个基于 Google Gemini 的网页客户端，对标 ChatGPT 3.5
 |    主界面     |        <img src="https://raw.githubusercontent.com/bclswl0827/ChatGemini/master/preview/home.png" alt="主界面" />        |
 |   多轮聊天    |       <img src="https://raw.githubusercontent.com/bclswl0827/ChatGemini/master/preview/chat.png" alt="多轮聊天" />       |
 |   附件识图    |    <img src="https://raw.githubusercontent.com/bclswl0827/ChatGemini/master/preview/attachment.png" alt="附件识图" />    |
+|  执行 Python  |    <img src="https://raw.githubusercontent.com/bclswl0827/ChatGemini/master/preview/python.png" alt="执行 Python" />    |
 | 逐字输出回应  |     <img src="https://raw.githubusercontent.com/bclswl0827/ChatGemini/master/preview/sse.png" alt="逐字输出回应" />      |
 | 聊天导出 HTML | <img src="https://raw.githubusercontent.com/bclswl0827/ChatGemini/master/preview/export_html.png" alt="聊天导出 HTML" /> |
 | 聊天导出 PDF  |  <img src="https://raw.githubusercontent.com/bclswl0827/ChatGemini/master/preview/export_pdf.png" alt="聊天导出 PDF" />  |
@@ -72,7 +81,7 @@ $ npm run build
  6. 部署项目
 > 将 `build` 目录下的文件部署至服务器或虚拟主机上
 
- 7. 启动服务
+ 7. 启动服务（可选）
 > 若在本地运行，执行
 ```bash
 $ npm run start

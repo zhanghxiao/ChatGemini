@@ -5,25 +5,43 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import "katex/dist/katex.min.css";
 import { Prism } from "react-syntax-highlighter";
-import { setClipboard } from "../helpers/setClipboard";
+import { setClipboardText } from "../helpers/setClipboardText";
 import { a11yDark as style } from "react-syntax-highlighter/dist/esm/styles/prism";
 import userThrottle from "../helpers/userThrottle";
 import { useEffect, useState } from "react";
-import { loadPyodide } from "pyodide";
 import userDebounce from "../helpers/userDebounce";
 import { Point } from "unist";
 import { isObjectEqual } from "../helpers/isObjectEqual";
+import { getPythonResult } from "../helpers/getPythonResult";
+import { PyodideInterface } from "pyodide";
+import { getPythonRuntime } from "../helpers/getPythonRuntime";
 
 interface MarkdownProps {
     readonly className?: string;
     readonly typingEffect: string;
+    readonly pythonRuntime: PyodideInterface | null;
+    readonly onPythonRuntimeCreated: (pyodide: PyodideInterface) => void;
     readonly children: string;
 }
 
-export const Markdown = (props: MarkdownProps) => {
-    const { className, typingEffect, children } = props;
+const TraceLog = "😈 [TRACE]";
+const DebugLog = "🚀 [DEBUG]";
+const ErrorLog = "🤬 [ERROR]";
+const PythonScriptDisplayName = "script.py";
+const RunnerResultPlaceholder = `
+${DebugLog} 结果需调用 print 打印
+${DebugLog} 尝试执行 Python 脚本...`;
 
-    const [executeResult, setExecuteResult] = useState<{
+export const Markdown = (props: MarkdownProps) => {
+    const {
+        className,
+        typingEffect,
+        pythonRuntime,
+        onPythonRuntimeCreated,
+        children,
+    } = props;
+
+    const [pythonResult, setPythonResult] = useState<{
         result: string;
         startPos: Point | null;
         endPos: Point | null;
@@ -31,7 +49,7 @@ export const Markdown = (props: MarkdownProps) => {
 
     const handleCopyCode = userThrottle(
         async (code: string, currentTarget: EventTarget) => {
-            const success = await setClipboard(code);
+            const success = await setClipboardText(code);
             const innerText = (currentTarget as HTMLButtonElement).innerText;
             (currentTarget as HTMLButtonElement).innerText = success
                 ? "复制成功"
@@ -43,61 +61,72 @@ export const Markdown = (props: MarkdownProps) => {
         1200
     );
 
-    const handleExecuteCode = userDebounce(
+    const handleRunnerResult = (x: string) =>
+        setPythonResult((prev) => {
+            let result = prev.result.replace(RunnerResultPlaceholder, "");
+            if (result.includes(TraceLog)) {
+                result = result
+                    .split("\n")
+                    .filter((x) => !x.includes(TraceLog))
+                    .join("\n");
+            }
+            return { ...prev, result: `${result}\n${x}` };
+        });
+
+    const handleRunnerImporting = (x: string, err: boolean) =>
+        setPythonResult((prev) => {
+            let { result } = prev;
+            if (err) {
+                result += `\n${ErrorLog} ${x}`;
+            } else {
+                result += `\n${TraceLog} ${x}`;
+            }
+            return { ...prev, result };
+        });
+
+    const handleJobFinished = () =>
+        setPythonResult((prev) => {
+            let { result } = prev;
+            result += `\n$`;
+            return { ...prev, result };
+        });
+
+    const handleRunPython = userDebounce(
         async (
             startPos: Point | null,
             endPos: Point | null,
             code: string,
             currentTarget: EventTarget
         ) => {
-            const innerText = (currentTarget as HTMLButtonElement).innerText;
-            try {
-                (currentTarget as HTMLButtonElement).innerText = "正在执行";
-                (currentTarget as HTMLButtonElement).disabled = true;
-                setExecuteResult({
-                    result: "$ python3 snippets.py",
-                    startPos,
-                    endPos,
-                });
-                const pyodide = await loadPyodide({
-                    indexURL: `${window.location.pathname}pyodide/`,
-                    stdout: (x: string) =>
-                        setExecuteResult((prev) => ({
-                            ...prev,
-                            result: `${prev.result}\n${x}`,
-                        })),
-                    stderr: (x: string) =>
-                        setExecuteResult((prev) => ({
-                            ...prev,
-                            result: `${prev.result}\n${x}`,
-                        })),
-                });
-                await pyodide.runPythonAsync(`
-from js import prompt
-def input(p):
-    return prompt(p)
-__builtins__.input = input
-`);
-                await pyodide.runPythonAsync(code);
-                setExecuteResult((prev) => ({
-                    ...prev,
-                    result: `${prev.result}\n$`,
-                }));
-            } catch (e) {
-                setExecuteResult({
-                    result: `${e}`,
-                    startPos,
-                    endPos,
-                });
+            (currentTarget as HTMLButtonElement).disabled = true;
+            setPythonResult({
+                result: `$ python3 ${PythonScriptDisplayName}${RunnerResultPlaceholder}`,
+                startPos,
+                endPos,
+            });
+            let runtime = pythonRuntime;
+            if (!runtime) {
+                runtime = await getPythonRuntime(
+                    `${window.location.pathname}pyodide/`
+                );
+                onPythonRuntimeCreated(runtime);
             }
-            (currentTarget as HTMLButtonElement).innerText = innerText;
+            await getPythonResult(
+                runtime,
+                code,
+                handleRunnerResult,
+                handleRunnerResult,
+                handleRunnerImporting,
+                handleRunnerResult,
+                handleJobFinished
+            );
             (currentTarget as HTMLButtonElement).disabled = false;
         },
         300
     );
 
     useEffect(() => {
-        setExecuteResult({ result: "", startPos: null, endPos: null });
+        setPythonResult({ result: "", startPos: null, endPos: null });
     }, [children]);
 
     return (
@@ -135,6 +164,8 @@ __builtins__.input = input
                                 PreTag={"div"}
                                 style={style}
                                 language={lang}
+                                showLineNumbers={true}
+                                lineNumberStyle={{ opacity: 0.5 }}
                                 children={code.replace(/\n$/, "")}
                             />
                             <div className="flex gap-2">
@@ -151,7 +182,7 @@ __builtins__.input = input
                                         <button
                                             className="text-gray-700/100 text-xs hover:opacity-50"
                                             onClick={({ currentTarget }) =>
-                                                handleExecuteCode(
+                                                handleRunPython(
                                                     startPos,
                                                     endPos,
                                                     code,
@@ -164,22 +195,50 @@ __builtins__.input = input
                                     )}
                             </div>
                             {isObjectEqual(
-                                executeResult.startPos ?? {},
+                                pythonResult.startPos ?? {},
                                 startPos ?? {}
                             ) &&
                                 isObjectEqual(
-                                    executeResult.endPos ?? {},
+                                    pythonResult.endPos ?? {},
                                     endPos ?? {}
                                 ) &&
-                                !!executeResult.result.length && (
-                                    <Prism
-                                        PreTag={"div"}
-                                        style={style}
-                                        children={executeResult.result.replace(
-                                            /\n$/,
-                                            ""
-                                        )}
-                                    />
+                                !!pythonResult.result.length && (
+                                    <>
+                                        <Prism
+                                            language="shell"
+                                            PreTag={"div"}
+                                            style={style}
+                                            children={pythonResult.result.replace(
+                                                /\n$/,
+                                                ""
+                                            )}
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                className="text-gray-700/100 text-xs hover:opacity-50"
+                                                onClick={({ currentTarget }) =>
+                                                    handleCopyCode(
+                                                        pythonResult.result,
+                                                        currentTarget
+                                                    )
+                                                }
+                                            >
+                                                复制结果
+                                            </button>
+                                            <button
+                                                className="text-gray-700/100 text-xs hover:opacity-50"
+                                                onClick={() =>
+                                                    setPythonResult({
+                                                        result: "",
+                                                        startPos: null,
+                                                        endPos: null,
+                                                    })
+                                                }
+                                            >
+                                                关闭窗口
+                                            </button>
+                                        </div>
+                                    </>
                                 )}
                         </>
                     ) : (
